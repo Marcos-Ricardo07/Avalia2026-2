@@ -4,8 +4,8 @@
 - **Estudante:** Marcos Vinicius Fagundes Ricardo
 - **Turma:** 2A
 - **Chave Única:** `P26-2A-86CE-58AE-853D-C5AB`
-- **URL_CLOUDFLARE:** `https://p26-2a-86ce-58ae-853d-c5ab.pages.dev` *(Atualize com a URL pública real do seu deploy na Cloudflare antes de abrir o Pull Request)*
 
+- **URL_CLOUDFLARE:** `https://projeto-p26-2a-86ce-58ae-853d-c5ab.pages.dev`
 ---
 
 ## Especificação do Projeto
