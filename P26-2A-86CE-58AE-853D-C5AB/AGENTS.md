@@ -14,14 +14,14 @@
 - **Arquivo de definição:** `.github/agents/backend-senior.agent.md`
 - **Pastas/arquivos que pode alterar:** `functions/`, `migrations/` e `wrangler.jsonc`.
 - **Skills que lê:** `skills/serverless-d1-discord/SKILL.md`.
-- **Entregas realizadas:** no commit `f4e660f`, implementou `functions/api/sessao.js`, `functions/api/cartoes/index.js`, `functions/api/cartoes/[id].js`, `functions/api/auth/discord.js`, `functions/api/auth/discord/callback.js`, `_middleware.js`, `_utils.js`, as migrações D1 e a configuração em `wrangler.jsonc`.
+- **Entregas realizadas:** no commit `f4e660f`, implementou `functions/api/sessao.js`, `functions/api/cartoes/index.js`, `functions/api/cartoes/[id].js`, `functions/api/auth/discord.js`, `functions/api/auth/discord/callback.js`, `_middleware.js`, `_utils.js`, a migração `migrations/0002_kanban.sql` (tabelas `sessoes` e `cartoes`), e removeu o `functions/api/status.js` do modelo.
 
 ### Agente 2: Frontend Sênior
 - **Papel:** Implementa a interface responsiva e acessível em HTML, CSS e JavaScript puro. Integra a interface com a API e oferece arrastar e soltar nativo e controles alternativos para mover cartões.
 - **Arquivo de definição:** `.github/agents/frontend-senior.agent.md`
 - **Pastas/arquivos que pode alterar:** `public/`.
 - **Skills que lê:** `skills/vanilla-dom-ui/SKILL.md` e `skills/kanban-drag-drop/SKILL.md`.
-- **Entregas realizadas:** no commit `19b0744`, criou `public/index.html`, `public/styles.css` e `public/app.js`, com o quadro, perfil de visitante/autenticado, Drag and Drop, controles de movimento e persistência pela API.
+- **Entregas realizadas:** no commit `19b0744`, reescreveu `public/index.html`, `public/styles.css` e `public/app.js`, com o quadro, perfil de visitante/autenticado, Drag and Drop, controles de movimento e persistência pela API.
 
 ### Agente 3: Testador e Validador (Teste e Validação)
 - **Papel:** Testa independentemente a API, a segurança, a interface e os requisitos da rubrica, registrando evidências reproduzíveis. Não corrige código de produção; relata defeitos aos agentes responsáveis.
@@ -40,7 +40,7 @@ O humano revisou cada alteração e pressionou Keep antes de continuar. Ele apli
 
 ## 4. Casos de teste e resultados
 
-As duas rodadas executaram 12 casos da API. Cada caso teve 12/12 aprovados na rodada final:
+As duas rodadas executaram os mesmos 12 casos da API, com 12/12 aprovados em cada uma:
 
 - Sem login em GET de sessão e cartões: Aprovado
 - Token de sessão inexistente: Aprovado
