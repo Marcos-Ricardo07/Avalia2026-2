@@ -1,34 +1,38 @@
-# Documentação de Engenharia de Agentes e Harness (P26-2A-86CE-58AE-853D-C5AB)
+# Documentação de Engenharia de Agentes e Harness
 
-> **Requisito da Rubrica (25 pontos):** Uso obrigatório de no mínimo **3 agentes diferentes** (sendo obrigatoriamente **1 agente dedicado a teste e validação**), documentando em qual *harness* operaram e relacionando as *skills* na pasta `skills/`.
+## 1. Ambiente de Orquestração
 
-## 1. Ambiente de Orquestração (Harness Utilizado)
+- **Harness Principal:** GitHub Copilot no VS Code, com agentes personalizados em `.github/agents/`.
+- **Modelo(s) Base:** Seleção automática do Copilot (Copilot Fusion); nas sessões registradas, o modelo escolhido foi o GPT-6 Luna.
+- **Estratégia de Coordenação:** Os agentes trabalham modularmente na pasta do projeto, alinhados pelos contratos da API, regras das skills e resultados de testes.
 
-- **Harness Principal:** *(Descreva aqui qual harness foi utilizado, ex: Antigravity / Claude Code / Cursor / Cline / GitHub Copilot Workspace / OpenHands)*
-- **Modelo(s) Base:** *(Informe os modelos utilizados pelos agentes)*
-- **Estratégia de Coordenação:** Os agentes operaram de forma modular sobre a subpasta `P26-2A-86CE-58AE-853D-C5AB/`, compartilhando especificações de banco de dados D1, contratos JSON das Cloudflare Pages Functions e verificação automatizada via `validar-local.mjs`.
+## 2. Agentes e Responsabilidades
 
----
+### Agente 1: Backend Sênior
+- **Papel:** Implementa a API serverless do Quadro Kanban com Cloudflare Pages Functions e D1. É responsável pela autenticação Discord, validações no servidor e isolamento dos cartões por usuário.
+- **Arquivo de definição:** `.github/agents/backend-senior.agent.md`
+- **Pastas/arquivos que pode alterar:** `functions/`, `migrations/` e `wrangler.jsonc`.
+- **Skills que lê:** `skills/serverless-d1-discord/SKILL.md`.
+- **Entregas realizadas:** (a preencher ao longo do projeto)
 
-## 2. Agentes Criados e Responsabilidades (Mínimo de 3 Agentes)
+### Agente 2: Frontend Sênior
+- **Papel:** Implementa a interface responsiva e acessível em HTML, CSS e JavaScript puro. Integra a interface com a API e oferece arrastar e soltar nativo e controles alternativos para mover cartões.
+- **Arquivo de definição:** `.github/agents/frontend-senior.agent.md`
+- **Pastas/arquivos que pode alterar:** `public/`.
+- **Skills que lê:** `skills/vanilla-dom-ui/SKILL.md` e `skills/kanban-drag-drop/SKILL.md`.
+- **Entregas realizadas:** (a preencher ao longo do projeto)
 
-### Agente 1: Arquiteto Serverless, Cloudflare D1 e Segurança Discord OAuth2
-- **Papel:** Modelagem do esquema relacional SQLite no Cloudflare D1 (`migrations/0001_init.sql`), implementação do fluxo de autenticação Discord OAuth2 e validação das regras de negócio no servidor (`functions/`).
-- **Skill Utilizada:** [`skills/serverless-d1-discord/SKILL.md`](./skills/serverless-d1-discord/SKILL.md)
-- **Entregas Realizadas:**
-  - Estruturação das tabelas e índices no Cloudflare D1.
-  - Proteção das rotas serverless contra manipulação no cliente.
+### Agente 3: Testador e Validador (Teste e Validação)
+- **Papel:** Testa independentemente a API, a segurança, a interface e os requisitos da rubrica, registrando evidências reproduzíveis. Não corrige código de produção; relata defeitos aos agentes responsáveis.
+- **Arquivo de definição:** `.github/agents/testador-validador.agent.md`
+- **Pastas/arquivos que pode alterar:** `tests/` e `docs/`.
+- **Skills que lê:** `skills/teste-validacao/SKILL.md`, `skills/serverless-d1-discord/SKILL.md`, `skills/vanilla-dom-ui/SKILL.md` e `skills/kanban-drag-drop/SKILL.md`.
+- **Entregas realizadas:** (a preencher ao longo do projeto)
 
-### Agente 2: Especialista em Interface Web Vanilla (HTML5, CSS3 e DOM)
-- **Papel:** Construção da interface responsiva e acessível utilizando exclusivamente HTML5 semântico, CSS3 moderno (sem sombras em fontes) e JavaScript puro (Vanilla JS), consumindo as rotas serverless via `fetch`.
-- **Skill Utilizada:** [`skills/vanilla-dom-ui/SKILL.md`](./skills/vanilla-dom-ui/SKILL.md)
-- **Entregas Realizadas:**
-  - Componentes visuais em `public/index.html`, `public/styles.css` e `public/app.js`.
-  - Inclusão do cabeçalho de perfil do Discord (`user_id`, nome e avatar) e rodapé oficial com a Chave Única `P26-2A-86CE-58AE-853D-C5AB`.
+## 3. Fluxo de trabalho
 
-### Agente 3: Agente de Teste, Auditoria de Segurança e Validação (Obrigatório)
-- **Papel:** Verificação independente de ponta a ponta: inspeção de contratos de API, tentativa de contorno das validações do servidor, auditoria da rubrica de 100 pontos e execução de testes funcionais.
-- **Skill Utilizada:** [`skills/teste-validacao/SKILL.md`](./skills/teste-validacao/SKILL.md)
-- **Entregas Realizadas:**
-  - Bateria de verificação de integridade dos endpoints e conformidade com a rubrica (`validar-local.mjs` e casos de teste documentados abaixo).
-  - Relatório de validação confirmando ausência de frameworks proibidos, presença da licença MIT e funcionamento no Cloudflare.
+O Backend implementa a API; o Testador testa e relata os resultados, e o Backend corrige os defeitos encontrados. Em seguida, o Frontend implementa a interface e o Testador a valida. Os resultados ficam registrados em `docs/relatorio-testes.md`.
+
+## 4. Casos de teste e resultados
+
+Os casos executados, resultados, defeitos e limitações de teste estão em [`docs/relatorio-testes.md`](./docs/relatorio-testes.md).
