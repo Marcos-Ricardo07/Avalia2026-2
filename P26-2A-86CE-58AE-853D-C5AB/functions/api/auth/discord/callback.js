@@ -1,30 +1,41 @@
-/**
- * Cloudflare Pages Function — /api/auth/discord/callback
- * Troca o authorization code pelo token de acesso do Discord, obtém o perfil (@me)
- * e persiste no Cloudflare D1 com cookie de sessão.
- */
+function clearStateCookie(response) {
+  response.headers.append(
+    "Set-Cookie",
+    "oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
+  );
+  return response;
+}
+
+function getCookie(request, name) {
+  const cookie = request.headers.get("Cookie") || "";
+  const prefix = `${name}=`;
+  const item = cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix));
+  return item ? item.slice(prefix.length) : null;
+}
+
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const error = url.searchParams.get("error");
+  const state = url.searchParams.get("state");
+  const stateCookie = getCookie(request, "oauth_state");
 
-  if (error || !code) {
-    return Response.redirect(new URL("/?auth_error=" + encodeURIComponent(error || "missing_code"), url.origin).href, 302);
+  if (!state || !stateCookie || state !== stateCookie) {
+    return clearStateCookie(Response.json({ error: "OAuth state inválido." }, { status: 400 }));
   }
 
-  if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET) {
-    return Response.json({
-      ok: false,
-      error: "missing_credentials",
-      message: "Defina DISCORD_CLIENT_ID e DISCORD_CLIENT_SECRET nas variáveis do Cloudflare Pages (Settings -> Environment variables).",
-    }, { status: 500 });
+  const code = url.searchParams.get("code");
+  if (url.searchParams.has("error") || !code) {
+    return clearStateCookie(Response.json({ error: "Autorização Discord recusada ou incompleta." }, { status: 400 }));
+  }
+
+  if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !env.DB) {
+    return clearStateCookie(Response.json({ error: "Autenticação Discord não configurada." }, { status: 500 }));
   }
 
   const redirectUri = new URL("/api/auth/discord/callback", url.origin).href;
 
   try {
-    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -36,48 +47,62 @@ export async function onRequestGet(context) {
       }),
     });
 
-    if (!tokenRes.ok) {
-      return Response.redirect(new URL("/?auth_error=token_exchange_failed", url.origin).href, 302);
+    if (!tokenResponse.ok) {
+      return clearStateCookie(Response.json({ error: "Falha na troca do código OAuth2." }, { status: 502 }));
     }
 
-    const tokenData = await tokenRes.json();
-    const userRes = await fetch("https://discord.com/api/users/@me", {
+    const tokenData = await tokenResponse.json();
+    if (typeof tokenData.access_token !== "string" || !tokenData.access_token) {
+      return clearStateCookie(Response.json({ error: "Resposta OAuth2 inválida." }, { status: 502 }));
+    }
+
+    const userResponse = await fetch("https://discord.com/api/users/@me", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
 
-    if (!userRes.ok) {
-      return Response.redirect(new URL("/?auth_error=fetch_user_failed", url.origin).href, 302);
+    if (!userResponse.ok) {
+      return clearStateCookie(Response.json({ error: "Falha ao obter o perfil Discord." }, { status: 502 }));
     }
 
-    const discordUser = await userRes.json();
+    const discordUser = await userResponse.json();
     const userId = discordUser.id;
     const username = discordUser.global_name || discordUser.username;
     const avatar = discordUser.avatar
       ? `https://cdn.discordapp.com/avatars/${userId}/${discordUser.avatar}.png`
       : "https://cdn.discordapp.com/embed/avatars/0.png";
 
-    if (env.DB) {
-      try {
-        await env.DB.prepare(
-          "CREATE TABLE IF NOT EXISTS discord_users (user_id TEXT PRIMARY KEY, username TEXT NOT NULL, avatar TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
-        ).run();
-        await env.DB.prepare(
-          "INSERT INTO discord_users (user_id, username, avatar, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET username = excluded.username, avatar = excluded.avatar, updated_at = CURRENT_TIMESTAMP"
-        ).bind(userId, username, avatar).run();
-      } catch {}
+    if (typeof userId !== "string" || typeof username !== "string" || !username) {
+      return clearStateCookie(Response.json({ error: "Perfil Discord inválido." }, { status: 502 }));
     }
 
-    const sessionPayload = JSON.stringify({ userId, username, avatar });
-    const encodedSession = btoa(encodeURIComponent(sessionPayload));
+    await env.DB.prepare(
+      "INSERT INTO discord_users (user_id, username, avatar, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET username = excluded.username, avatar = excluded.avatar, updated_at = CURRENT_TIMESTAMP"
+    ).bind(userId, username, avatar).run();
 
-    return new Response(null, {
+    const sessionToken = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await env.DB.prepare(
+      "INSERT INTO sessoes (token, user_id, expira_em) VALUES (?, ?, ?)"
+    ).bind(sessionToken, userId, expiresAt).run();
+
+    const response = new Response(null, {
       status: 302,
       headers: {
-        Location: "/?login=success",
-        "Set-Cookie": `discord_session=${encodedSession}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400; Secure`,
+        Location: "/",
+        "Set-Cookie": `sessao=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`,
       },
     });
-  } catch (err) {
-    return Response.redirect(new URL("/?auth_error=exception", url.origin).href, 302);
+    response.headers.append(
+      "Set-Cookie",
+      "oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
+    );
+    response.headers.append(
+      "Set-Cookie",
+      "discord_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
+    );
+    return response;
+  } catch (error) {
+    console.error("Discord OAuth callback failed.");
+    return clearStateCookie(Response.json({ error: "Falha ao concluir a autenticação Discord." }, { status: 502 }));
   }
 }
