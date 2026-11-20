@@ -76,3 +76,101 @@ Após a implementação da interface, executar localmente, com o ambiente Discor
 6. Repetir a inspeção numa largura de celular, verificando uso e legibilidade dos controles.
 
 Não executar operações de escrita no site publicado; para estes passos, usar somente o ambiente local.
+
+## Rodada 2 — API, frontend pronto e auditoria da entrega
+
+- **Data/hora:** 2026-11-20 19:01 -03:00
+- **Escopo:** segunda rodada solicitada após a conclusão da interface; API no Wrangler/D1 local, verificações estáticas do frontend, requisições GET locais e públicas, auditoria estrutural e registro do teste manual informado pelo usuário.
+- **Segredos/dados:** migrações e seed foram aplicados somente ao D1 local. O servidor local usou `DISCORD_CLIENT_ID=test-client-id`; nenhum segredo real foi lido. No site publicado foram feitas exclusivamente requisições GET.
+
+### Comandos e verificações executados
+
+```powershell
+npx.cmd wrangler d1 migrations apply DB --local
+npx.cmd wrangler d1 execute DB --local --file tests/seed.sql
+npx.cmd wrangler pages dev --binding DISCORD_CLIENT_ID=test-client-id
+node --test tests/api.test.mjs
+node validar-local.mjs P26-2A-86CE-58AE-853D-C5AB
+git status --short --untracked-files=all
+git ls-files --error-unmatch -- P26-2A-86CE-58AE-853D-C5AB/.dev.vars
+```
+
+Também foram feitos GET para `/` no servidor local, para `/api/sessao` local com sessões fictícias, e para `/`, `/api/sessao` e `/api/cartoes` no deploy. A análise estática cobriu `public/index.html`, `public/app.js` e `public/styles.css`, buscando API HTML Drag and Drop, persistência PATCH, APIs de inserção HTML, bibliotecas/frameworks e sombras de texto.
+
+**Inicialização local:** a primeira execução da suíte ocorreu antes de o servidor local estar disponível e falhou nos 12 casos com `ECONNREFUSED` em `localhost:8788`. Foi classificada como falha de ambiente, não como defeito. As migrações indicaram “No migrations to apply”; o seed local foi executado com sucesso. Após iniciar o Wrangler, o GET local respondeu 200 e a suíte foi repetida com sucesso integral.
+
+### Resultados da API local
+
+| Caso | Resultado esperado | Resultado obtido | Status |
+|---|---|---|---|
+| 1. GET de sessão e cartões sem cookie | Ambos `401` | Ambos `401` | Aprovado |
+| 2. Token de sessão inexistente | `401` | `401` | Aprovado |
+| 3. Cookie legado `discord_session` forjado | Sem autenticação, `401` | `401` nas duas rotas | Aprovado |
+| 4. Isolamento entre usuários | B não lista cartão de A; PATCH e DELETE de B recebem `404`; cartão de A não muda | Todos os resultados esperados | Aprovado |
+| 5. Validações inválidas | Nove entradas inválidas recebem `400` | Todos os nove cenários retornaram `400` | Aprovado |
+| 6. `user_id` enviado pelo cliente | Proprietário definido pela sessão permanece A | `user_id=111` preservado | Aprovado |
+| 7. Atualização e ordenação | PATCH persiste coluna/posição; GET retorna dados ordenados | Valores e ordem confirmados no GET seguinte | Aprovado |
+| 8. Exclusão própria | DELETE `204`; cartão ausente no GET | `204`; cartão ausente | Aprovado |
+| 9. Texto de SQL e HTML | Conteúdo armazenado como texto; tabela permanece funcional | Ambos os títulos retornados sem interromper os GETs | Aprovado |
+| 10. Erros seguros | Sem stack trace, SQL, caminho interno ou segredo | Corpos examinados sem esses dados | Aprovado |
+| 11. Logout | DELETE de sessão `204`; token encerrado recebe `401`; outra sessão continua válida | Todos os resultados esperados | Aprovado |
+| 12. OAuth2 e `state` | Redirect contém `state` e `identify`, cookie protegido; callback divergente recusado | Redirect `302` e callback divergente `400` | Aprovado |
+
+**Resultado final da suíte após iniciar o servidor:** 12 aprovados, 0 reprovados, 0 ignorados (`node --test tests/api.test.mjs`).
+
+### Verificações do frontend
+
+| Caso | Resultado esperado | Resultado obtido | Status |
+|---|---|---|---|
+| GET local `/` sem login | HTTP `200`, sem redirecionamento automático ao Discord | `200`, sem cabeçalho `Location` | Aprovado |
+| Rodapé e chave | Chave dentro de `<footer>` no HTML recebido e diretamente em `public/index.html` | Presente nas duas verificações | Aprovado |
+| Acesso de visitante | Link “Entrar com Discord” para a rota de autenticação | Link presente em `index.html` e na resposta local | Aprovado |
+| Drag and Drop | `draggable`, `dragstart`, `dragover` com `preventDefault()`, `drop` e `dragend`; sem Pointer Events/eventos de mouse como substitutos | API HTML nativa encontrada; não foram encontrados handlers alternativos | Aprovado |
+| Inserção de conteúdo | Não usar `innerHTML`, `outerHTML`, `insertAdjacentHTML` ou `document.write` para dados | Nenhuma ocorrência nos arquivos frontend analisados; renderização de texto usa `textContent`/propriedades de formulário | Aprovado |
+| Frameworks, bibliotecas e CDN | Nenhum framework/biblioteca de interface ou script externo; sem `package.json` com dependências | Nenhum framework/biblioteca ou script CDN encontrado; não há `package.json` no projeto | Aprovado |
+| Sombras em texto | Sem `text-shadow` nem `filter: drop-shadow(...)` no CSS | Nenhuma ocorrência | Aprovado |
+| Persistência de mudanças | Mover/posicionar, editar texto e alterar prioridade usam PATCH | Os handlers de arrasto, botões de mover, edição e prioridade convergem para PATCH `/api/cartoes/:id` | Aprovado |
+| Perfil autenticado | Nome, avatar e botão Sair disponíveis após autenticação | Elementos e atualização do DOM encontrados; GET local de `teste-a` e `teste-b` respondeu `200` com nome/avatar | Aprovado |
+| Colunas em celular | CSS adapta o quadro para uma coluna em telas menores | Regra responsiva define `grid-template-columns: 1fr` | Aprovado |
+
+### Site publicado — somente GET
+
+| Requisição | Resultado esperado | Resultado obtido | Status |
+|---|---|---|---|
+| GET `/` | HTTP `200` e chave no HTML | `200`; chave e link de visitante presentes | Aprovado |
+| GET `/api/sessao` sem cookie | `401` | `401` | Aprovado |
+| GET `/api/cartoes` sem cookie | `401` | `401` | Aprovado |
+
+Não foram enviadas requisições POST, PATCH, PUT ou DELETE ao deploy.
+
+### Auditoria da entrega
+
+`node validar-local.mjs P26-2A-86CE-58AE-853D-C5AB`, executado na pasta pai, aprovou **9/9 itens**: LICENSE MIT; chave no README; chave no rodapé HTML; três agentes documentados; agente de teste/validação documentado; skills presentes; frontend sem frameworks proibidos; backend Functions/D1/OAuth; deploy Cloudflare online.
+
+Verificações complementares:
+
+- Primeiro endereço `.pages.dev` do README: `https://projeto-p26-2a-86ce-58ae-853d-c5ab.pages.dev`; chave presente.
+- LICENSE contém o texto completo da licença MIT.
+- AGENTS contém `### Agente 1`, `### Agente 2` e `### Agente 3`, identifica GitHub Copilot no VS Code como harness, descreve o Agente 3 e tem 2.677 caracteres (limite: 6.000).
+- Encontrados quatro arquivos `SKILL.md` em `skills/`.
+- `.dev.vars` não está rastreado pelo Git.
+- O `git status` anterior ao registro estava limpo; após esta atualização, a única alteração esperada é este relatório em `docs/`, dentro da subpasta do projeto.
+
+### Teste manual no site publicado — resultado informado pelo usuário
+
+O usuário informou que executou o teste em uma aba anônima em **20/11/2026** e que todos os passos funcionaram. Este resultado é registrado como relato do usuário, não como execução independente desta rodada.
+
+| Caso | Resultado esperado | Resultado informado | Status |
+|---|---|---|---|
+| Visitante sem login | Botão de entrada e rodapé com chave visíveis | Ambos visíveis | Aprovado — informado pelo usuário |
+| Login real Discord | Nome e avatar no cabeçalho | Funcionou | Aprovado — informado pelo usuário |
+| Criar cartão, editar título/descrição e mudar prioridade | Alterações disponíveis e salvas | Funcionou | Aprovado — informado pelo usuário |
+| Arrastar entre colunas, reordenar na coluna e usar botões de mover | Todas as opções movimentam o cartão | Funcionou | Aprovado — informado pelo usuário |
+| Recarregar com F5 | Estado permanece no lugar | Funcionou | Aprovado — informado pelo usuário |
+| Excluir cartão | Cartão removido | Funcionou | Aprovado — informado pelo usuário |
+| Visão de celular | Colunas empilhadas verticalmente | Funcionou | Aprovado — informado pelo usuário |
+| Sair | Retorna à tela de visitante | Funcionou | Aprovado — informado pelo usuário |
+
+### Defeitos e limitações
+
+Nenhum defeito funcional confirmado nesta rodada. A única falha de execução foi a tentativa inicial da suíte antes de o servidor local iniciar; a repetição com o servidor ativo passou. O login real e os gestos de interface não foram reproduzidos independentemente nesta rodada; o resultado desses passos é o relato manual do usuário acima.
